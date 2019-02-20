@@ -37,6 +37,7 @@ __CMD__`
 const (
 	Version                               = "v1.0.0"
 	defaultAutoDeleteTemporaryPath        = true
+	defaultAutoDeleteTemporaryFile        = false
 	defaultPerm                           = 0755
 	rawConstLibs                          = `__LIBS__`
 	rawConstCmd                           = `__CMD__`
@@ -45,7 +46,9 @@ const (
 
 type Golpal struct {
 	AutoDeleteTemporaryPath bool
+	AutoDeleteTemporaryFile bool
 	TemporaryPath           string
+	filePath                string
 
 	libs []string
 }
@@ -58,6 +61,7 @@ func New() *Golpal {
 
 func (g *Golpal) init() *Golpal {
 	g.AutoDeleteTemporaryPath = defaultAutoDeleteTemporaryPath
+	g.AutoDeleteTemporaryFile = defaultAutoDeleteTemporaryFile
 
 	// ===== prepare default temporary folder path
 	basePath, _ := os.Getwd()
@@ -75,6 +79,7 @@ func (g *Golpal) init() *Golpal {
 func (g *Golpal) prepareTemporaryFile() (string, *os.File, error) {
 	filename := fmt.Sprintf("temp-%d.go", time.Now().UnixNano())
 	fileLocation := filepath.Join(g.getTemporaryFolderExactPath(), filename)
+	g.filePath = fileLocation
 
 	folder, err := os.Open(g.getTemporaryFolderExactPath())
 	if err != nil {
@@ -98,8 +103,13 @@ func (g *Golpal) deleteTemporaryPathIfAllowed() {
 	if !g.AutoDeleteTemporaryPath {
 		return
 	}
-
 	g.DeleteTemporaryPath()
+}
+func (g *Golpal) deleteTemporaryFileIfAllowed() {
+	if !g.AutoDeleteTemporaryFile {
+		return
+	}
+	g.DeleteTemporaryFile()
 }
 
 func (g *Golpal) containsPrint(cmdString string) bool {
@@ -166,6 +176,10 @@ func (g *Golpal) DeleteTemporaryPath() *Golpal {
 	os.RemoveAll(g.getTemporaryFolderExactPath())
 	return g
 }
+func (g *Golpal) DeleteTemporaryFile() *Golpal {
+	os.Remove(g.filePath)
+	return g
+}
 
 func (g *Golpal) AddLibs(libs ...string) *Golpal {
 	for _, lib := range libs {
@@ -182,7 +196,10 @@ func (g *Golpal) AddLibs(libs ...string) *Golpal {
 }
 
 func (g *Golpal) ExecuteSimple(cmdString string) (string, error) {
-	defer g.deleteTemporaryPathIfAllowed()
+	defer func() {
+		g.deleteTemporaryPathIfAllowed()
+		g.deleteTemporaryFileIfAllowed()
+	}()
 	cmdString = strings.TrimSpace(cmdString)
 
 	if strings.HasPrefix(cmdString, "package") {
@@ -222,7 +239,10 @@ func (g *Golpal) ExecuteSimple(cmdString string) (string, error) {
 }
 
 func (g *Golpal) Execute(cmdString string) (string, error) {
-	defer g.deleteTemporaryPathIfAllowed()
+	defer func() {
+		g.deleteTemporaryPathIfAllowed()
+		g.deleteTemporaryFileIfAllowed()
+	}()
 	cmdString = strings.TrimSpace(cmdString)
 
 	if strings.HasPrefix(cmdString, "package") {
@@ -248,7 +268,10 @@ func (g *Golpal) Execute(cmdString string) (string, error) {
 }
 
 func (g *Golpal) ExecuteRaw(cmdString string) (string, error) {
-	defer g.deleteTemporaryPathIfAllowed()
+	defer func() {
+		g.deleteTemporaryPathIfAllowed()
+		g.deleteTemporaryFileIfAllowed()
+	}()
 	cmdString = strings.TrimSpace(cmdString)
 
 	fileLocation, file, err := g.prepareTemporaryFile()
